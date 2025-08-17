@@ -2,6 +2,6 @@
 ## LINEのようなチャットアプリを作る！
 ### 制作：ryohsuke
 
-Flaskを使用したチャットアプリです。
+Flask、WebSocketを使用したチャットアプリです。
 sqliteとかhtmlとかJavaScriptとか触るの初めてだけど、ChatGPTのお世話になりながら頑張ってます。
 
