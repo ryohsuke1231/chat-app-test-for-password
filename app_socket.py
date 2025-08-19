@@ -108,7 +108,8 @@ def init_db():
                 icon_url TEXT,
                 creator_id INTEGER,
                 created_at TEXT,
-                messages_table TEXT
+                messages_table TEXT,
+                others TEXT DEFAULT NULL
             )
         ''')
         conn.execute('''
@@ -205,12 +206,19 @@ def register():
         hashed_password = generate_password_hash(password)
         try:
             with sqlite3.connect("chat.db") as conn:
+                new_password = ""
+                while True:
+                    new_password = random_id(8)
+                    cur = conn.execute("SELECT 1 FROM users WHERE friend_password = ?",
+                        (new_password,))
+                    if not cur.fetchone():
+                        break  # 衝突なし
+                hashed_friend_password = generate_password_hash(new_password)
                 conn.execute(
                     '''
-                    INSERT INTO users (email, display_name, password, icon_filename, icon_is_default)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (email, display_name, hashed_password, filename,
-                      0 if icon else 1))
+                    INSERT INTO users (email, display_name, password, icon_filename, icon_is_default, friend_password)
+                    VALUES (?, ?, ?, ?, ? , ?)
+                ''', (email, display_name, hashed_password, filename, 0 if icon else 1, hashed_friend_password))
         except sqlite3.IntegrityError:
             return render_template('register.html',
                                    error="このメールアドレスは既に登録されています。")
@@ -350,6 +358,8 @@ def get_groups():
             g.creator_id,
             g.created_at,
             g.messages_table,
+            g.others,
+            g.type,
             u.display_name,
             u.icon_filename,
             u.icon_is_default
@@ -361,7 +371,13 @@ def get_groups():
     result = cur2.fetchall()
 
     groups = []
+    groups_count = 0
+    DMs_count = 0
     for r in result:
+        if r[10] == "dm":
+            DMs_count += 1
+        else:
+            groups_count += 1
         group = {
             "id": r[0],
             "name": r[1],
@@ -370,7 +386,9 @@ def get_groups():
             "created_at": r[4],
             "messages_table": r[5],
             "creator_display_name": r[6],
-            "creator_icon_url": f"/icons/{r[7]}" if r[8] == 1 else "/static/default.jpeg"
+            "creator_icon_url": f"/icons/{r[7]}" if r[8] == 1 else "/static/default.jpeg",
+            "others": r[9] if r[9] else "",
+            "type": r[10]
         }
         groups.append(group)
 
@@ -380,7 +398,9 @@ def get_groups():
         "user_icon": user_icon,
         "user_icon_is_default": user_icon_is_default,
         "email": email,
-        "groups": groups
+        "groups": groups,
+        "groups_count": groups_count,
+        "DMs_count": DMs_count
     })
 
 
@@ -785,7 +805,7 @@ def get_group_info():
     data = request.get_json()
     group_id = data.get('group_id')
     with sqlite3.connect("chat.db") as conn:
-        cur = conn.execute("SELECT name, icon_url FROM groups WHERE id = ?",
+        cur = conn.execute("SELECT name, icon_url, type FROM groups WHERE id = ?",
                            (group_id, ))
         row = cur.fetchone()
         if row is None:
@@ -1013,25 +1033,20 @@ def user_info():
     with sqlite3.connect("chat.db") as db:
         db.row_factory = sqlite3.Row
         user = db.execute(
-            "SELECT id, display_name, icon_filename, icon_is_default, email, status_message FROM users WHERE id = ?",
+            "SELECT id, display_name, icon_filename, icon_is_default, email, status_message, friend_password FROM users WHERE id = ?",
             (uid, )).fetchone()
         if not user:
             print("User not found")
             return jsonify({"error": "ユーザーが見つかりません"}), 404
         #print(f"User info fetched: {user['display_name']}, icon: {user['icon_filename']}, email: {user['email']}, is_default: {user['icon_is_default']}")
         return jsonify({
-            "id":
-            user["id"],
-            "email":
-            user["email"],
-            "name":
-            user["display_name"],
-            "iconUrl": ("/static/default.jpeg" if user["icon_is_default"] else
-                        f"/icons/{user['icon_filename']}"),
-            "icon_is_default":
-            user["icon_is_default"],
-            "status_message":
-            user["status_message"]
+            "id": user["id"],
+            "email": user["email"],
+            "name": user["display_name"],
+            "iconUrl": ("/static/default.jpeg" if user["icon_is_default"] else f"/icons/{user['icon_filename']}"),
+            "icon_is_default": user["icon_is_default"],
+            "status_message": user["status_message"],
+            "friend_password": user["friend_password"]
         })
 
 
@@ -1068,11 +1083,19 @@ def get_members(group_id):
             "join_date": r[5],
             "join_order": r[6]
         } for r in cur.fetchall()]
+
+        cur1 = conn.execute("SELECT type FROM groups WHERE id = ?", (group_id,))
+        row = cur1.fetchone()
+        if row is not None and row[0] == "dm":
+            type = "dm"
+        else:
+            type = "group"
+        
         for member in members:
             member["last_comment_time_readable"] = human_readable_time(
                 member["last_comment_time"])
         #conn.commit()
-        return jsonify(members)
+        return jsonify(members=members, type=type)
 
 
 @app.route('/users/<user_id>/<group_id>')
@@ -1213,34 +1236,38 @@ def update_():
                     (new_password,))
                 if not cur.fetchone():
                     break  # 衝突なし
+            hashed_friend_password = generate_password_hash(new_password)
             conn.execute("""
                 UPDATE users SET friend_password = ? WHERE id = ?
-            """, (new_password, user_id))
+            """, (hashed_friend_password, user_id))
 
 @socketio.on('add_friend')
 def add_friend(data):
     friend_id = data.get('friend_id')
     friend_password = data.get('friend_password')
     my_id = session.get('uid')  # セッションから自分のIDを取得（POSTならrequest.formやJSONから）
+    print(f"friend_id: {friend_id}, friend_password: {friend_password}, my_id: {my_id}")
 
     if not my_id:
-        emit('add_friend_response', {'status': 'error', 'message': 'ログインが必要です'})
+        emit('error', {'status': 'error', 'msg': 'ログインが必要です'})
         return
 
     with sqlite3.connect("chat.db") as conn:
         # 1. 相手ユーザーの存在確認 & パスワード一致
         cur = conn.execute("""
-            SELECT id, display_name, icon_filename, icon_is_default
+            SELECT display_name, icon_filename, icon_is_default, friend_password
             FROM users
-            WHERE id = ? AND friend_password = ?
-        """, (friend_id, friend_password))
+            WHERE id = ?
+        """, (friend_id, ))
         friend = cur.fetchone()
         if not friend:
-            emit('add_friend_response', {'status': 'error', 'message': 'IDまたはパスワードが間違っています'})
+            emit('error', {'status': 'error', 'msg': 'IDが間違っています'})
             return
+        if not check_password_hash(friend[3], friend_password):
+            emit('error', {'status': 'error', 'msg': 'パスワードが間違っています'})
 
         # 2. 既にDMグループがあるか確認（ID順で固定）
-        group_id = f"dm_{min(my_id, friend_id)}_{max(my_id, friend_id)}"
+        group_id = f"dm_{min(int(my_id), int(friend_id))}_{max(int(my_id), int(friend_id))}"
         cur = conn.execute("SELECT 1 FROM groups WHERE id = ?", (group_id,))
         if not cur.fetchone():
             # 3. グループ作成（アイコンは固定、名前は相手の名前）
@@ -1250,9 +1277,9 @@ def add_friend(data):
             messages_table = f"messages_{group_id}"
 
             conn.execute("""
-                INSERT INTO groups (id, name, type, icon_url, creator_id, created_at, messages_table)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (group_id, group_name, "dm", group_icon_url, my_id, created_at, messages_table))
+                INSERT INTO groups (id, name, type, icon_url, creator_id, created_at, messages_table, others)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (group_id, group_name, "dm", group_icon_url, my_id, created_at, messages_table, friend[0]))
 
             conn.execute(f"""
                 CREATE TABLE IF NOT EXISTS {messages_table} (
@@ -1281,7 +1308,7 @@ def add_friend(data):
     emit('add_friend_response', {
         'status': 'ok',
         'friend': {
-            'id': friend[0],
+            'id': friend_id,
             'display_name': friend[1],
             'icon_filename': friend[2],
             'icon_is_default': friend[3]

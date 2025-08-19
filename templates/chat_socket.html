@@ -78,36 +78,87 @@
         height: calc(100vh - 50px); /* ヘッダー分を引いた高さ */
       }
 
+      /* サイドバー全体 */
       #groupSidebar {
-        flex: 0 0 250px;
-        background-color: #fdfdfd;
-        padding: 20px;
-        border-right: 1px solid #ccc;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
+        width: 250px;
+        background-color: #f4f4f4;
+        padding: 10px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
       }
 
+      /* セクションのタイトル */
+      /* セクションのタイトル (クリックできるように) */
       #groupSidebar h3 {
-        margin-top: 0;
+        cursor: pointer;
+        background-color: transparent;
+        color: #333;
+        padding: 10px;
+        margin-bottom: 10px;
+        font-size: 18px;
+        font-weight: bold;
+        text-align: left;
+        border: none;
+        text-decoration: underline;
+        transition: color 0.3s;
       }
 
-      #groupList {
-        list-style-type: none;
-        padding: 0;
-        flex-grow: 1;
-        overflow-y: auto;
+      #groupSidebar h3:hover {
+        color: #007BFF;
+      }
+
+
+      /* グループ・DMのリストセクション */
+      #groupListSection, #dmListSection {
+        display: none;
         margin-bottom: 20px;
       }
 
-      #groupList li {
-        padding: 10px;
-        border-bottom: 1px solid #eee;
-        cursor: pointer;
-        transition: background-color 0.2s;
+      /* リストアイテム */
+      #groupList, #dmList {
+        list-style-type: none;
+        padding-left: 0;
       }
 
-      #groupList li:hover {
+      #groupList li, #dmList li {
+        background-color: #fff;
+        padding: 8px;
+        margin: 5px 0;
+        border-radius: 5px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+
+      /* まだ何もない時のメッセージ */
+      #noneGroups, #noneDMs {
+        text-align: center;
+        font-size: 14px;
+        color: #777;
+        font-style: italic;
+      }
+
+      /* アクションボタン */
+      #groupActions {
+        margin-top: 20px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      #groupActions button {
+        background-color: #28a745;
+        color: white;
+        padding: 12px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        margin-bottom: 10px;
+        transition: background-color 0.3s ease;
+      }
+
+      #groupActions button:hover {
+        background-color: #218838;
+      }
+
+      #dmList li:hover, #groupList li:hover {
         background-color: #f1f1f1;
       }
 
@@ -661,7 +712,8 @@
         margin-top: 4px;
       }
       .createGroupBtn,
-      .joinGroupBtn {
+      .joinGroupBtn,
+      .addFriendBtn {
         margin: 0 10px;
         padding: 10px 18px;
         font-size: 1em;
@@ -671,14 +723,7 @@
         color: white;
         cursor: pointer;
       }
-      #noneGroups {
-        justify-content: center;
-        align-items: center;
-        height: 150px; /* 適当な高さ */
-        text-align: center;
-        color: #666;
-        font-style: italic;
-      }
+      
       .multiline-text {
         white-space: pre-wrap;
       }
@@ -857,47 +902,59 @@
     <!-- チャット本体 -->
     <div id="container">
       <div id="groupSidebar">
-        <h3>グループ一覧</h3>
-        <ul id="groupList">
-          <!-- JavaScriptでグループをここに追加 -->
-        </ul>
-        <p id="noneGroups" style="display: none">
-          まだグループに参加していません
-        </p>
+        <h3 onclick="toggleSection('groupListSection')" id="groupListTitle">グループ</h3>
+        <div id="groupListSection">
+          <ul id="groupList">
+            <!-- JavaScriptでグループをここに追加 -->
+          </ul>
+          <p id="noneGroups" style="display: none">
+            まだグループに参加していません
+          </p>
+        </div>
+
+        <h3 onclick="toggleSection('dmListSection')" id="dmListTitle">友達</h3>
+        <div id="dmListSection">
+          <ul id="dmList">
+            <!-- JavaScriptでDMをここに追加 -->
+          </ul>
+          <p id="noneDMs" style="display: none">まだ友達がいません</p>
+        </div>
+
         <div id="groupActions">
-          <button onclick="showCreateGroupModal()">＋ 新規作成</button>
+          <button onclick="showCreateGroupModal()">＋ グループを新規作成</button>
           <button onclick="showJoinGroupModal()">グループに参加</button>
+          <button onclick="showAddFriendModal()">友達を追加</button>
         </div>
       </div>
 
+
       <div id="main">
         <!-- グループ未選択時の案内エリア -->
-        <div
-          id="emptyState"
-          style="text-align: center; margin-top: 40px; display: none"
-        >
-          <h2>グループに参加して友達とチャットしましょう！</h2>
-          <p>下のボタンからグループを作成、または参加してください。</p>
+        <div id="emptyState" style="text-align: center; margin-top: 40px; display: none">
+          <h2>友達を追加したりグループを作ったりしてチャットを楽しみましょう！</h2>
           <button class="createGroupBtn" onclick="showCreateGroupModal()">
             グループ新規作成
           </button>
           <button class="joinGroupBtn" onclick="showJoinGroupModal()">
             グループに参加
           </button>
+          <button class="addFriendBtn" onclick="showAddFriendModal()">
+            友達を追加
+          </button>
         </div>
-        <div
-          id="notGroupSelected"
-          style="text-align: center; margin-top: 40px; display: none"
-        >
-          <h2>グループを選択して友達とチャットしましょう！</h2>
+        <div id="notGroupSelected" style="text-align: center; margin-top: 40px; display: none">
+          <h2>グループや友達を選択して友達とチャットしましょう！</h2>
           <p>
-            「グループ一覧」からグループを選択、もしくは下のボタンからグループを作成、または参加してください。
+            「グループ一覧」からグループを選択、もしくは下のボタンからはじめてください。
           </p>
           <button class="createGroupBtn" onclick="showCreateGroupModal()">
             グループ新規作成
           </button>
           <button class="joinGroupBtn" onclick="showJoinGroupModal()">
             グループに参加
+          </button>
+          <button class="addFriendBtn" onclick="showAddFriendModal()">
+            友達を追加
           </button>
         </div>
 
@@ -1045,6 +1102,17 @@
 
         <br /><br />
 
+        <label >自分のID:<br />
+          <span id="userId" style="color: gray;"></span>
+        </label>
+        <br /><br />
+        <label
+          >友達追加用パスワード:<br />
+          <span id="friendPassword" style="color: gray;"></span>
+        </label>
+
+        <br /><br />
+
         <button id="permission_notification" type="button">通知設定</button>
         <button id="logout" type="button">ログアウト</button>
         <button id="saveSettings" type="button">保存</button>
@@ -1144,6 +1212,32 @@
           id="closeCreateGroupModal"
           type="button"
           onclick="close_create_group_modal()"
+        >
+          キャンセル
+        </button>
+      </div>
+    </div>
+
+    <div id="addFriendModal" class="modal" style="display: none">
+      <div class="modal-content">
+        <h3>友達を追加</h3>
+        <label
+          >友達のユーザーID:<br />
+          <input type="text" id="friendIdInput" /> </label
+        >
+        <br /><br />
+        <label
+          >友達のフレンドパスワード:<br />
+          <input type="text" id="friendPasswordInput" /> </label
+        >
+        <br /><br />
+        <button id="addFriendBtn" type="button" onclick="add_friend()">
+          友達を追加
+        </button>
+        <button
+          id="closeAddFriendModal"
+          type="button"
+          onclick="closeModals()"
         >
           キャンセル
         </button>
@@ -1254,9 +1348,11 @@
         document.getElementById("inputArea").style.display = "none";
         document.getElementById("members-section").style.display = "none";
         document.getElementById("noneGroups").style.display = "block";
+        document.getElementById("noneDMs").style.display = "block";
         document.getElementById("groupList").style.display = "none";
         setWelcomeMessage();
         unSelectGroup();
+        hideSearchMessages();
         //document.getElementById("scrollToBottomBtn").style.display = "none";
       }
 
@@ -1267,10 +1363,42 @@
         document.getElementById("inputArea").style.display = "none";
         document.getElementById("members-section").style.display = "none";
         document.getElementById("noneGroups").style.display = "none";
-        document.getElementById("groupList").style.display = "block";
+        document.getElementById("noneDMs").style.display = "none";
+        toggleSection("groupListSection", true);
+        toggleSection("dmListSection", true);
         setWelcomeMessage();
         document.getElementById("addOptions").style.display = "none";
         unSelectGroup();
+        hideSearchMessages();
+      }
+
+      function add_friend() {
+        const friendId = document.getElementById("friendIdInput").value;
+        const friendPassword = document.getElementById("friendPasswordInput").value;
+        document.getElementById("addFriendModal").style.display = "none";
+        document.getElementById("friendIdInput").value = "";
+        document.getElementById("friendPasswordInput").value = "";
+        if (!friendId) return;
+        if (!friendPassword) return;
+        socket.emit("add_friend", { friend_id: friendId, friend_password: friendPassword });
+      }
+
+      function showAddFriendModal() {
+        document.getElementById("addFriendModal").style.display = "flex";
+        document.getElementById("friendIdInput").value = "";
+      }
+
+      function toggleSection(sectionId, turn=false) {
+        const section = document.getElementById(sectionId);
+        if (turn) {
+          section.style.display = "block";
+          return;
+        }
+        if (section.style.display === "none" || section.style.display === "") {
+          section.style.display = "block";  // 開く
+        } else {
+          section.style.display = "none";   // 閉じる
+        }
       }
 
       function showSearchMessages() {
@@ -1417,14 +1545,29 @@
 
       let replyingTo = null; // null or { id: xxx, name: "〇〇", text: "..." }
 
-      async function renderGroupList(groups) {
+      async function renderGroupList(data) {
+        const groups = data.groups;
         if (groups.length === 0) {
           showEmptyState();
         } else {
           showNotChosenGroup();
+          if (data.groups_count === 0) {
+            document.getElementById("noneGroups").style.display = "block";
+          } else {
+            document.getElementById("noneGroups").style.display = "none";
+            document.getElementById("groupListTitle").textContent = `グループ (${data.groups_count})`;
+          }
+          if (data.DMs_count === 0) {
+            document.getElementById("noneDMs").style.display = "block";
+          } else {
+            document.getElementById("noneDMs").style.display = "none";
+            document.getElementById("dmListTitle").textContent = `友達 (${data.DMs_count})`;
+          }
         }
         const groupList = document.getElementById("groupList");
+        const dmList = document.getElementById("dmList");
         groupList.innerHTML = ""; // 一度クリア
+        dmList.innerHTML = "";
 
         groups.forEach((group) => {
           const li = document.createElement("li");
@@ -1481,6 +1624,8 @@
               menu.style.zIndex = 1000;
               menu.style.width = "120px";
               menu.style.fontSize = "14px";
+
+              if (group.type !== "dm") {
 
               // メニュー項目：IDを表示
               const idShow = document.createElement("div");
@@ -1539,6 +1684,44 @@
               menu.appendChild(rename);
               menu.appendChild(leave);
 
+              } else {
+                const leave = document.createElement("div");
+                leave.textContent = "友達から削除";
+                leave.style.padding = "6px 12px";
+                leave.style.cursor = "pointer";
+                leave.onmouseenter = () => {
+                  leave.style.backgroundColor = "#eee";
+                };
+                leave.onmouseleave = () => {
+                  leave.style.backgroundColor = "white";
+                };
+                leave.style.color = "red";
+                leave.onclick = async (event) => {
+                  event.stopPropagation();
+                  closeCurrentMenu();
+                  socket.emit("leave_group", { group_id: group.id });
+                  //alert('グループから退出しました');
+                };
+
+                const showUserInfo = document.createElement("div");
+                showUserInfo.textContent = "友達の情報を表示";
+                showUserInfo.style.padding = "6px 12px";
+                showUserInfo.style.cursor = "pointer";
+                showUserInfo.onmouseenter = () => {
+                  showUserInfo.style.backgroundColor = "#eee";
+                }
+                showUserInfo.onmouseleave = () => {
+                  showUserInfo.style.backgroundColor = "white";
+                }
+                showUserInfo.onclick = async (event) => {
+                  event.stopPropagation();
+                  closeCurrentMenu();
+                  showUserInfo(group.others);
+                };
+                menu.appendChild(showUserInfo);
+                menu.appendChild(leave);
+              }
+
               // 3本線ボタンの位置を基準にメニュー配置
               const rect = menuBtn.getBoundingClientRect();
               menu.style.top = rect.bottom + window.scrollY + "px";
@@ -1553,7 +1736,11 @@
             li.appendChild(menuBtn);
           }
 
-          groupList.appendChild(li);
+          if (group.type === "dm") {
+            dmList.appendChild(li);
+          } else {
+            groupList.appendChild(li);
+          }
         });
         if (currentEditingGroupId) {
           const groupToEdit = groups.find(
@@ -1727,23 +1914,38 @@
       let currentGroupId = null;
       let isGroupSelected = false;
 
-      function selectGroup(group_id, group_name) {
+      async function selectGroup(group_id, group_name) {
         currentGroupId = group_id;
         latestMessageId = -1;
         isGroupSelected = true;
+        const res = await fetch("/get_group_info", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ group_id: group_id }),
+        });
+        const data = await res.json();
+        if (data.status === "ok") {
+          if (data.type === "dm") {
+            document.getElementById("welcomeMessage").textContent =
+              `「${data.group_name}」とチャット中`;
+          } else {
+            document.getElementById("welcomeMessage").textContent =
+            `「${group_name}」グループでチャット中`;
+          }
+          showChatUI();
+          loadMembers();
+          loadMessages(group_id); // ← Flaskからそのグループのメッセージを取得する関数
+        }
 
-        document.getElementById("welcomeMessage").textContent =
-          `「${group_name}」グループでチャット中`;
-        showChatUI();
-        loadMembers();
-        loadMessages(group_id); // ← Flaskからそのグループのメッセージを取得する関数
       }
 
       async function loadGroups() {
         sendMessageToPython("loadGroups!!!!!!!!!");
         const response = await fetch("/get_groups");
         const data = await response.json();
-        renderGroupList(data.groups);
+        renderGroupList(data);
       }
       function showCreateGroupModal() {
         document.getElementById("groupNameInput").textContent = "";
@@ -1915,8 +2117,14 @@
           }
         }
         const response = await fetch(`/api/members/${group_id}`);
-        const members = await response.json();
+        const data = await response.json();
         //membersData = members;
+        if (data.type === "dm") {
+          document.getElementById("members-section").style.display = "none";
+          return;
+        } else {
+          document.getElementById("members-section").style.display = "block";
+        }
         if (!isEqual(members, previousMembersData)) {
           membersData = members;
           previousMembersData = members; // 更新
@@ -2353,6 +2561,7 @@
       }
 
       async function showUserInfo(user_id) {
+        const userID = String(user_id);
         const res = await fetch(`/users/${user_id}/${currentGroupId}`);
         const user = await res.json();
         const modal = document.getElementById("userInfoModal");
@@ -2832,8 +3041,9 @@
         document.getElementById("displayNameInput").value = user.name;
         document.getElementById("iconInput").value = "";
         document.getElementById("currentIconPreview").src = user.iconUrl;
-        document.getElementById("statusMessageInput").value =
-          user.status_message;
+        document.getElementById("statusMessageInput").value = user.status_message;
+        document.getElementById("friendPassword").textContent = user.friend_password;
+        document.getElementById("userId").textContent = user.id;
       }
 
       async function requestNotificationPermission() {
@@ -3054,6 +3264,11 @@
       socket.on("joined", (data) => {
         loadMembers();
         loadGroups(currentGroupId);
+      });
+
+      socket.on("add_friend_response", (data) => {
+        loadGroups();
+        loadMembers();
       });
 
       socket.on("update_read_message", (data) => {
