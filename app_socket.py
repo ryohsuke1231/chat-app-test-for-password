@@ -224,7 +224,8 @@ def register():
                                    error="このメールアドレスは既に登録されています。")
 
         session['user'] = email
-        return redirect(url_for('login'))
+        #return redirect(url_for('login'))
+        return render_template('showPassword.html', new_password=new_password)
     return render_template('register.html')
 
 
@@ -343,54 +344,65 @@ def get_groups():
         # ユーザー情報（表示名＋アイコン）を取得
         cur = conn.execute(
             "SELECT display_name, icon_filename, icon_is_default FROM users WHERE email=?",
-            (email, ))
+            (email,)
+        )
         row = cur.fetchone()
         display_name = row[0] if row else "Unknown"
         user_icon = row[1] if row and row[1] else None
         user_icon_is_default = row[2] if row else 1
 
-    cur2 = conn.execute(
-        """
-        SELECT
-            g.id,
-            g.name,
-            g.icon_url,
-            g.creator_id,
-            g.created_at,
-            g.messages_table,
-            g.others,
-            g.type,
-            u.display_name,
-            u.icon_filename,
-            u.icon_is_default
-        FROM groups g
-        JOIN user_groups ug ON g.id = ug.group_id
-        JOIN users u ON g.creator_id = u.id
-        WHERE ug.user_id = ?
-    """, (session['uid'], ))
-    result = cur2.fetchall()
+        # ユーザーが所属するグループ情報を取得
+        cur2 = conn.execute("""
+            SELECT
+                g.id,
+                g.name,
+                g.icon_url,
+                g.creator_id,
+                g.created_at,
+                g.messages_table,
+                g.others,
+                g.type,
+                u.display_name AS creator_display_name,
+                u.icon_filename AS creator_icon_filename,
+                u.icon_is_default AS creator_icon_is_default
+            FROM groups g
+            JOIN user_groups ug ON g.id = ug.group_id
+            JOIN users u ON g.creator_id = u.id
+            WHERE ug.user_id = ?
+        """, (session['uid'],))
+        result = cur2.fetchall()
 
-    groups = []
-    groups_count = 0
-    DMs_count = 0
-    for r in result:
-        if r[10] == "dm":
-            DMs_count += 1
-        else:
-            groups_count += 1
-        group = {
-            "id": r[0],
-            "name": r[1],
-            "icon_url": r[2],
-            "creator_id": r[3],
-            "created_at": r[4],
-            "messages_table": r[5],
-            "creator_display_name": r[6],
-            "creator_icon_url": f"/icons/{r[7]}" if r[8] == 1 else "/static/default.jpeg",
-            "others": r[9] if r[9] else "",
-            "type": r[10]
-        }
-        groups.append(group)
+        groups = []
+        groups_count = 0
+        DMs_count = 0
+
+        for r in result:
+            group_type = r[7]
+            if group_type == "dm":
+                DMs_count += 1
+            else:
+                groups_count += 1
+
+            # creator_icon_url の計算
+            if r[10] == 1:  # creator_icon_is_default
+                creator_icon_url = "/static/default.jpeg"
+            else:
+                creator_icon_url = f"/icons/{r[9]}"  # creator_icon_filename
+
+            group = {
+                "id": r[0],
+                "name": r[1],
+                "icon_url": r[2],
+                "creator_id": r[3],
+                "created_at": r[4],
+                "messages_table": r[5],
+                "creator_display_name": r[8],
+                "creator_icon_url": creator_icon_url,
+                "others": r[6] if r[6] else "",
+                "type": group_type
+            }
+            groups.append(group)
+
 
     #print(f"returning groups: {groups}")
     return jsonify({
@@ -1033,7 +1045,7 @@ def user_info():
     with sqlite3.connect("chat.db") as db:
         db.row_factory = sqlite3.Row
         user = db.execute(
-            "SELECT id, display_name, icon_filename, icon_is_default, email, status_message, friend_password FROM users WHERE id = ?",
+            "SELECT id, display_name, icon_filename, icon_is_default, email, status_message FROM users WHERE id = ?",
             (uid, )).fetchone()
         if not user:
             print("User not found")
@@ -1045,8 +1057,7 @@ def user_info():
             "name": user["display_name"],
             "iconUrl": ("/static/default.jpeg" if user["icon_is_default"] else f"/icons/{user['icon_filename']}"),
             "icon_is_default": user["icon_is_default"],
-            "status_message": user["status_message"],
-            "friend_password": user["friend_password"]
+            "status_message": user["status_message"]
         })
 
 
@@ -1143,7 +1154,7 @@ def clean_broken_groups(db_path="chat.db"):
     all_tables = set(row[0] for row in c.fetchall())
 
     # groups から group_id を取得
-    c.execute("SELECT group_id FROM groups")
+    c.execute("SELECT id FROM groups")
     group_ids = [row[0] for row in c.fetchall()]
     group_id_set = set(group_ids)
 
@@ -1220,6 +1231,28 @@ def onClose():
     #resp.set_cookie("session", "", expires=0)  # 👈 Cookieを強制削除
     return resp
 
+@socketio.on('regenerate_friend_password')
+def regenerate_friend_password():
+    print("Regenerating friend password...")
+    with sqlite3.connect("chat.db") as conn:
+        uid = session.get('uid')
+        if not uid:
+            print("User ID not found in session.")
+            emit('error', {'status': 'error', 'msg': 'ログインが必要です'})
+            return
+        new_password = ""
+        while True:
+            new_password = random_id(8)
+            cur = conn.execute("SELECT 1 FROM users WHERE friend_password = ?",
+                (new_password,))
+            if not cur.fetchone():
+                break  # 衝突なし
+        hashed_friend_password = generate_password_hash(new_password)
+        conn.execute("""
+            UPDATE users SET friend_password = ? WHERE id = ?
+        """, (hashed_friend_password, uid))
+        emit('friend_password_regenerated', {'status': 'ok', 'new_password': new_password})
+
 def update_():
     with sqlite3.connect("chat.db") as conn:
         cur = conn.execute("""
@@ -1265,6 +1298,7 @@ def add_friend(data):
             return
         if not check_password_hash(friend[3], friend_password):
             emit('error', {'status': 'error', 'msg': 'パスワードが間違っています'})
+            return
 
         # 2. 既にDMグループがあるか確認（ID順で固定）
         group_id = f"dm_{min(int(my_id), int(friend_id))}_{max(int(my_id), int(friend_id))}"
@@ -1279,7 +1313,7 @@ def add_friend(data):
             conn.execute("""
                 INSERT INTO groups (id, name, type, icon_url, creator_id, created_at, messages_table, others)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (group_id, group_name, "dm", group_icon_url, my_id, created_at, messages_table, friend[0]))
+            """, (group_id, group_name, "dm", group_icon_url, my_id, created_at, messages_table, friend_id))
 
             conn.execute(f"""
                 CREATE TABLE IF NOT EXISTS {messages_table} (
@@ -1309,9 +1343,9 @@ def add_friend(data):
         'status': 'ok',
         'friend': {
             'id': friend_id,
-            'display_name': friend[1],
-            'icon_filename': friend[2],
-            'icon_is_default': friend[3]
+            'display_name': friend[0],
+            'icon_filename': friend[1],
+            'icon_is_default': friend[2]
         },
         'group_id': group_id
     })

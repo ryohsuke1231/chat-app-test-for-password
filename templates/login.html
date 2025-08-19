@@ -73,6 +73,11 @@
         font-weight: 400;
         font-style: normal;
       }
+      .hidden-input {
+        position: absolute;
+        left: -9999px;
+      }
+
       .rotate {
         animation: rotate 0.8s linear infinite;
       }
@@ -126,8 +131,8 @@
         <input
           id="password_real"
           name="password"
+          class="hidden-input"
           type="password"
-          style="display: none"
           autocomplete="off"
           autocapitalize="off"
           inputmode="latin"
@@ -176,8 +181,8 @@
 
       setupMaskedInput("password_display", "password_real");
 
-      const device_type = {{ device_type | tojson }};
-      if (device_type === "mobile") {
+      const login_device_type = {{ device_type | tojson }};
+      if (login_device_type === "mobile") {
         alert("このアプリはPC用に設計されているため、モバイル端末で利用すると見づらい、操作しにくい場合がございます。");
       }
     </script>

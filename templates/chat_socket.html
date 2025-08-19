@@ -1106,14 +1106,15 @@
           <span id="userId" style="color: gray;"></span>
         </label>
         <br /><br />
-        <label
+        <!--<label
           >友達追加用パスワード:<br />
           <span id="friendPassword" style="color: gray;"></span>
         </label>
 
         <br /><br />
+      -->
 
-        <button id="permission_notification" type="button">通知設定</button>
+        <button id="regenerateFriendPassword" type="button" onclick="regenerateFriendPassword()">友達追加用のパスワードを再発行</button>
         <button id="logout" type="button">ログアウト</button>
         <button id="saveSettings" type="button">保存</button>
         <button id="closeSettings" type="button">キャンセル</button>
@@ -1353,6 +1354,8 @@
         setWelcomeMessage();
         unSelectGroup();
         hideSearchMessages();
+        toggleSection("groupListSection", true);
+        toggleSection("dmListSection", true);
         //document.getElementById("scrollToBottomBtn").style.display = "none";
       }
 
@@ -1461,6 +1464,13 @@
           
           container.appendChild(resultItem);
         });
+      }
+
+      function regenerateFriendPassword() {
+        // 友達追加用のパスワードを再発行する処理
+        console.log("Regenerating friend password...");
+        socket.emit("regenerate_friend_password");
+        closeModals();
       }
 
       async function userInfo() {
@@ -2233,8 +2243,10 @@
         };
 
         // 通知許可ボタン
+        /*
         document.getElementById("permission_notification").onclick =
           requestNotificationPermission;
+        */
 
         // プロフィール保存
         document.getElementById("saveSettings").onclick = saveProfile;
@@ -3042,7 +3054,7 @@
         document.getElementById("iconInput").value = "";
         document.getElementById("currentIconPreview").src = user.iconUrl;
         document.getElementById("statusMessageInput").value = user.status_message;
-        document.getElementById("friendPassword").textContent = user.friend_password;
+        //document.getElementById("friendPassword").textContent = user.friend_password;
         document.getElementById("userId").textContent = user.id;
       }
 
@@ -3296,6 +3308,22 @@
         ]);
         loadGroups();
         showNotChosenGroup();
+      });
+
+      socket.on("friend_password_regenerated", (data) => {
+        if (data.status === "ok") {
+          showDialog("新しい友達追加用パスワードが生成されました\n大切に保管してください\n新しい友達追加用パスワード: " + data.new_password, [
+            {
+              text: "OK",
+              action: () => {
+                return;
+              },
+              close: true,
+            },
+          ]);
+        } else {
+          showErrorModal("友達パスワードの再生成に失敗しました。");
+        }
       });
 
       socket.on("error", (data) => {
