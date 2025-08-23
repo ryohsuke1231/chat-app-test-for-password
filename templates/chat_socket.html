@@ -1564,12 +1564,14 @@
           showNotChosenGroup();
           if (data.groups_count === 0) {
             document.getElementById("noneGroups").style.display = "block";
+            document.getElementById("groupListTitle").textContent = "グループ (0)";
           } else {
             document.getElementById("noneGroups").style.display = "none";
             document.getElementById("groupListTitle").textContent = `グループ (${data.groups_count})`;
           }
           if (data.DMs_count === 0) {
             document.getElementById("noneDMs").style.display = "block";
+            document.getElementById("dmListTitle").textContent = "友達 (0)";
           } else {
             document.getElementById("noneDMs").style.display = "none";
             document.getElementById("dmListTitle").textContent = `友達 (${data.DMs_count})`;
@@ -1938,7 +1940,7 @@
         });
         const data = await res.json();
         if (data.status === "ok") {
-          if (data.type === "dm") {
+          if (data.group_type === "dm") {
             document.getElementById("welcomeMessage").textContent =
               `「${data.group_name}」とチャット中`;
           } else {
@@ -2653,6 +2655,7 @@
         sendMessageToPython(`Now latestMessageId: ${latestMessageId}`);
 
         messages = data.messages;
+        const group_type = data.group_type;
         //var now_date = null;
         
         const elements = chat.querySelectorAll(".msg");
@@ -2714,6 +2717,14 @@
           bubble.dataset.time = msg.time;
           bubble.dataset.text = msg.text;
           bubble.dataset.name = msg.name;
+          let read = "";
+          if (msg.read > 0) {
+            if (group_type === "dm") {
+              read = "既読";
+            } else {
+              read = `既読${msg.read}`;
+            }
+          }
           const headerContent = isMine
             ? `
                 <strong>${msg.name}</strong>
@@ -2726,8 +2737,8 @@
                 <strong>${msg.name}</strong>
               `;
           const otherInfo = isMine
-            ? `${msg.time} 　既読${msg.read}`
-            : `既読${msg.read} 　${msg.time}`;
+            ? `${msg.time} 　${read}`
+            : `${read} 　${msg.time}`;
 
           const dataPreview =
             msg.type === "image"
@@ -3281,7 +3292,7 @@
       });
 
       socket.on("add_friend_response", (data) => {
-        socket.emit("join_group", { group_id: data.group_id });
+        //socket.emit("join_group", { group_id: data.group_id });
         loadGroups();
         loadMembers();
       });

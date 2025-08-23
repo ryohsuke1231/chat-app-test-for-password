@@ -712,8 +712,17 @@ def chat(group_id):
                 "icon": icon_filename,
                 "icon_is_default": icon_is_default
             })
+        cur = conn.execute(
+            "SELECT type FROM groups WHERE id = ?",
+            (group_id,)
+        )
+        result = cur.fetchone()
+        if result:
+            group_type = result[0]
+        else:
+            group_type = "group"
     #print(f"returning messages: {messages}")
-    return jsonify({"status": "ok", "messages": messages, "file_secret_key": file_secret_key})
+    return jsonify({"status": "ok", "messages": messages, "file_secret_key": file_secret_key, "group_type": group_type})
 
 @socketio.on('read_message')
 def read_message(data):
@@ -833,10 +842,12 @@ def get_group_info():
             return jsonify({"status": "error", "message": "グループが存在しません"}), 400
         group_name = row[0]
         group_icon_url = row[1]
+        group_type = row[2]
     return jsonify({
         "status": "ok",
         "group_name": group_name,
-        "group_icon_url": group_icon_url
+        "group_icon_url": group_icon_url,
+        "group_type": group_type
     })
 
 
@@ -876,6 +887,7 @@ def update_profile():
         row = cur.fetchone()
         old_icon_filename = row[0]
         old_icon_is_default = row[1]
+        old_icon_url = f"/icons/{old_icon_filename}" if old_icon_filename else None
 
         update_fields = []
         update_values = []
@@ -889,6 +901,7 @@ def update_profile():
         if icon and icon.filename:
             ext = os.path.splitext(secure_filename(icon.filename))[1]
             filename = f"{uuid.uuid4().hex}{ext}"
+            new_icon_url = f"/icons/{filename}"
             save_path = os.path.join(app.config['ICON_FOLDER'], filename)
             os.makedirs(app.config['ICON_FOLDER'], exist_ok=True)
             icon.save(save_path)
@@ -931,14 +944,22 @@ def update_profile():
                 except sqlite3.OperationalError as e:
                     print(f"テーブル {table_name} の更新中にエラー: {e}")
 
-    #ユーザーが入っているグループを全て取得
-    cur3 = conn.execute(
-        "SELECT group_id FROM user_groups WHERE user_id = ?", (user_id, ))
-    group_ids = [r[0] for r in cur3.fetchall()]
-    socketio.emit('my_profile_updated', {
-        'user_id': user_id,
-        'new_name': new_name
-    })
+
+        #ユーザーが入っているグループを全て取得
+        cur3 = conn.execute(
+            "SELECT group_id FROM user_groups WHERE user_id = ?", (user_id, ))
+        group_ids = [r[0] for r in cur3.fetchall()]
+        socketio.emit('my_profile_updated', {
+            'user_id': user_id,
+            'new_name': new_name
+        })
+
+        if old_icon_url:
+            conn.execute(
+                "UPDATE groups SET icon_url = ? WHERE icon_url = ?",
+                (new_icon_url, old_icon_url)
+            )
+
     for group_id in group_ids:
         socketio.emit('profile_updated', {
             'group_id': group_id, 
