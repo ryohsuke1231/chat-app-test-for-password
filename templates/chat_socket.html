@@ -1384,6 +1384,7 @@
         if (!friendId) return;
         if (!friendPassword) return;
         socket.emit("add_friend", { friend_id: friendId, friend_password: friendPassword });
+        //socket.emit("join_group", { group_id:  });
       }
 
       function showAddFriendModal() {
@@ -1955,6 +1956,7 @@
         sendMessageToPython("loadGroups!!!!!!!!!");
         const response = await fetch("/get_groups");
         const data = await response.json();
+        socket.emit("check_groups", { groups: data.groups.map(g => g.id) });
         renderGroupList(data);
       }
       function showCreateGroupModal() {
@@ -3279,6 +3281,7 @@
       });
 
       socket.on("add_friend_response", (data) => {
+        socket.emit("join_group", { group_id: data.group_id });
         loadGroups();
         loadMembers();
       });

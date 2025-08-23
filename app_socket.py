@@ -415,6 +415,15 @@ def get_groups():
         "DMs_count": DMs_count
     })
 
+@socketio.on('check_groups')
+def check_groups(data):
+    groups = data.get('groups', []) 
+    print(f"Received groups: {groups}")
+    # ここでグループの状態をチェックするロジックを追加
+    for group_id in groups:
+        join_room(group_id)  # 既に参加済みでも大丈夫
+    print(f"Socket {request.sid} joined groups: {groups}")
+
 
 @app.route('/create_group', methods=['POST'])
 def create_group():
@@ -1282,6 +1291,7 @@ def add_friend(data):
     print(f"friend_id: {friend_id}, friend_password: {friend_password}, my_id: {my_id}")
 
     if not my_id:
+        print("User ID not found in session.")
         emit('error', {'status': 'error', 'msg': 'ログインが必要です'})
         return
 
@@ -1294,19 +1304,31 @@ def add_friend(data):
         """, (friend_id, ))
         friend = cur.fetchone()
         if not friend:
+            print("Friend not found.")
             emit('error', {'status': 'error', 'msg': 'IDが間違っています'})
             return
         if not check_password_hash(friend[3], friend_password):
+            print("Friend password is incorrect.")
             emit('error', {'status': 'error', 'msg': 'パスワードが間違っています'})
             return
 
         # 2. 既にDMグループがあるか確認（ID順で固定）
         group_id = f"dm_{min(int(my_id), int(friend_id))}_{max(int(my_id), int(friend_id))}"
         cur = conn.execute("SELECT 1 FROM groups WHERE id = ?", (group_id,))
+        print(f"friend data: {friend}")
         if not cur.fetchone():
             # 3. グループ作成（アイコンは固定、名前は相手の名前）
-            group_name = f"{friend[1]}"
-            group_icon_url = f"/icons/{friend[2]}" if friend[3] else "/static/chat_default.png"
+            
+            group_name = f"{friend[0]}"
+            icon_filename = friend[1]
+            icon_is_default = friend[2]
+            
+            if icon_is_default == 1 and icon_filename:  # icon_is_defaultが1かつファイル名が存在
+                group_icon_url = f"/icons/{icon_filename}"
+            else:
+                group_icon_url = "/static/chat_default.png"
+            
+            print(f"Creating group: {group_name}, Icon: {group_icon_url}")
             created_at = datetime.now(JST).strftime('%Y-%m-%d %H:%M:%S')
             messages_table = f"messages_{group_id}"
 
@@ -1335,10 +1357,17 @@ def add_friend(data):
                     INSERT OR IGNORE INTO user_groups (user_id, group_id, join_date)
                     VALUES (?, ?, datetime('now'))
                 """, (uid, group_id))
+                # read_status を先に登録（既存なら更新）
+                conn.execute("""
+                    INSERT INTO read_status (group_id, user_id, last_read_message_id)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(group_id, user_id) DO UPDATE SET last_read_message_id = ?
+                """, (group_id, uid, 0, 0))
 
         conn.commit()
 
     # 4. 成功レスポンス
+    print("Friend added successfully.")
     emit('add_friend_response', {
         'status': 'ok',
         'friend': {
